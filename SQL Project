@@ -1,0 +1,85 @@
+with accounts as (
+
+
+select
+     date(s.date) as date,
+     sp.country as country,
+     a.send_interval as send_interval,
+     a.is_verified as is_verified,
+     a.is_unsubscribed as is_unsubscribed,
+     count(distinct a.id) as account_cnt,
+     0 as sent_msg,
+     0 as open_msg,
+     0 as visit_msg
+from `DA.account` a
+join `DA.account_session` acs
+on a.id = acs.account_id
+join `DA.session` s
+on acs.ga_session_id = s.ga_session_id
+join `DA.session_params` sp
+on s.ga_session_id = sp.ga_session_id
+group by s.date, sp.country, a.send_interval, a.is_verified, a.is_unsubscribed
+
+
+union all
+
+
+select
+DATE(TIMESTAMP_MILLIS(es.sent_date)) as date,
+sp.country,
+a.send_interval,
+a.is_verified,
+a.is_unsubscribed,
+0 as account_cnt,
+count(distinct es.id_message) as sent_msg,
+count(distinct eo.id_message) as open_msg,
+count(distinct ev.id_message) as visit_msg
+from `DA.account` a
+left join `DA.email_sent` es
+on a.id = es.id_account
+left join `DA.email_open` eo
+on es.id_message = eo.id_message
+left join `DA.email_visit` ev
+on es.id_message = ev.id_message
+join `DA.account_session` acs
+on a.id = acs.account_id
+join `DA.session_params` sp
+on acs.ga_session_id = sp.ga_session_id
+where es.id_message is not null
+group by date,sp.country, a.send_interval, a.is_verified, a.is_unsubscribed
+),
+
+
+with_totals as (
+select
+     date,
+     country,
+     send_interval,
+     is_verified,
+     is_unsubscribed,
+     sum(account_cnt) as account_cnt,
+     sum(sent_msg) as sent_msg,
+     sum(open_msg) as open_msg,
+     sum(visit_msg) as visit_msg,
+     sum(sum(account_cnt)) over (partition by country) as total_country_account_cnt ,
+     sum(sum(sent_msg)) over (partition by country) as total_country_sent_cnt
+from accounts
+group by 1,2,3,4,5
+),
+
+
+with_ranks as (
+
+
+select *,
+rank() over(order by total_country_account_cnt desc) as rank_total_country_account_cnt ,
+rank() over(order by total_country_sent_cnt desc) as rank_total_country_sent_cnt
+from with_totals
+)
+
+
+select *
+from with_ranks
+where rank_total_country_account_cnt <= 10 or rank_total_country_sent_cnt <= 10
+
+
