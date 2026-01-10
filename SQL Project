@@ -50,7 +50,7 @@ group by date,sp.country, a.send_interval, a.is_verified, a.is_unsubscribed
 ),
 
 
-with_totals as (
+with totals as (
 select
      date,
      country,
@@ -68,18 +68,18 @@ group by 1,2,3,4,5
 ),
 
 
-with_ranks as (
+with ranks as (
 
 
 select *,
 rank() over(order by total_country_account_cnt desc) as rank_total_country_account_cnt ,
 rank() over(order by total_country_sent_cnt desc) as rank_total_country_sent_cnt
-from with_totals
+from totals
 )
 
 
 select *
-from with_ranks
+from ranks
 where rank_total_country_account_cnt <= 10 or rank_total_country_sent_cnt <= 10
 
 
