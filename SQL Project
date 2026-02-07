@@ -25,7 +25,7 @@ union all
 
 
 select
-DATE(TIMESTAMP_MILLIS(es.sent_date)) as date,
+DATE(DATE_ADD(TIMESTAMP_MILLIS(es.sent_date), INTERVAL 3 HOUR)) AS date,
 sp.country,
 a.send_interval,
 a.is_verified,
@@ -50,7 +50,7 @@ group by date,sp.country, a.send_interval, a.is_verified, a.is_unsubscribed
 ),
 
 
-with totals as (
+totals as (
 select
      date,
      country,
@@ -61,25 +61,27 @@ select
      sum(sent_msg) as sent_msg,
      sum(open_msg) as open_msg,
      sum(visit_msg) as visit_msg,
-     sum(sum(account_cnt)) over (partition by country) as total_country_account_cnt ,
-     sum(sum(sent_msg)) over (partition by country) as total_country_sent_cnt
 from accounts
 group by 1,2,3,4,5
 ),
 
+country_totals as(
+  select *,
+  sum(account_cnt) over (partition by country) as total_country_account_cnt ,
+  sum(sent_msg) over (partition by country) as total_country_sent_cnt
+from totals
+),
 
-with ranks as (
+ranks as (
 
 
 select *,
 rank() over(order by total_country_account_cnt desc) as rank_total_country_account_cnt ,
 rank() over(order by total_country_sent_cnt desc) as rank_total_country_sent_cnt
-from totals
+from country_totals
 )
 
 
 select *
 from ranks
 where rank_total_country_account_cnt <= 10 or rank_total_country_sent_cnt <= 10
-
-
